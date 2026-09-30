@@ -1,0 +1,45 @@
+name: Build Windows EXE
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Baixar codigo
+        uses: actions/checkout@v4
+
+      - name: Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependencias
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Baixar modelo Vosk
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path models | Out-Null
+          Invoke-WebRequest -Uri "https://alphacephei.com/vosk/models/vosk-model-small-pt-0.3.zip" -OutFile "models\vosk-model-small-pt-0.3.zip"
+          Expand-Archive -Path "models\vosk-model-small-pt-0.3.zip" -DestinationPath "models" -Force
+          Remove-Item "models\vosk-model-small-pt-0.3.zip"
+
+      - name: Gerar Assistente.exe
+        shell: pwsh
+        run: |
+          pyinstaller --noconfirm --clean --onefile --windowed --name Assistente --collect-all vosk --collect-all sounddevice --hidden-import pyttsx3.drivers --hidden-import pyttsx3.drivers.sapi5 --add-data "models\vosk-model-small-pt-0.3;models\vosk-model-small-pt-0.3" app.py
+
+      - name: Publicar executavel
+        uses: actions/upload-artifact@v4
+        with:
+          name: Assistente-Windows
+          path: dist/Assistente.exe
