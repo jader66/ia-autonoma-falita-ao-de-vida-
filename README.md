@@ -1,37 +1,45 @@
-# Assistente de IA — V1
+# Assistente de IA — V1.3
 
 Assistente pessoal para Windows com uma única tela central.
 
-## Conceito
+## Objetivo
 
-Todas as funções são acessadas pela mesma conversa. O usuário não precisa navegar entre abas para executar tarefas.
+Todas as funções são acessadas pela mesma conversa. Não existem abas separadas para cada função.
 
-A interface é apenas a central do assistente; arquivos, Windows, internet, tarefas, memória e automações ficam nos módulos internos.
+## V1.3 — executável único
 
-## V1
-
-- Interface única em português.
-- Comandos por texto.
-- Respostas na própria tela.
+- Interface central única.
+- Comandos por texto e voz.
+- Controle básico do Windows.
 - Abertura de programas e sites.
-- Comandos básicos do Windows.
-- Criação de lembretes simples.
-- Histórico da sessão.
-- Resposta por voz preparada.
-- Captura de voz preparada sem PyAudio.
-- Arquitetura modular.
-- Tratamento de erros.
+- Pesquisa na internet.
+- Lembretes.
+- Palavra de ativação configurável, padrão: "assistente".
+- Reconhecimento de voz em português sem PyAudio.
+- Modelo de voz incluído no build do executável.
+- Build com PyInstaller em modo `--onefile`.
+- O usuário final recebe somente `Assistente.exe`.
 
-## Executar
+## Como gerar
 
-Recomendado: Python 3.11 no Windows.
+Para desenvolvimento, use Python 3.11 no Windows e execute:
 
 ```bat
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
-python app.py
+setup.bat
+gerar_exe.bat
 ```
+
+O resultado será:
+
+```
+dist\Assistente.exe
+```
+
+Esse é o arquivo que deve ser distribuído ao usuário final. Ele não precisa instalar Python nem criar ambiente virtual.
+
+## Build automático
+
+O GitHub Actions também gera automaticamente o executável Windows quando há atualização na `main`. No GitHub, abra **Actions > Build Windows EXE** e baixe o artefato **Assistente-Windows**.
 
 ## Comandos de exemplo
 
@@ -43,4 +51,4 @@ python app.py
 - criar lembrete em 10 minutos de testar o sistema
 - sair
 
-O nome do assistente ainda não é definido nesta versão.
+O nome do assistente ainda não é fixo.
