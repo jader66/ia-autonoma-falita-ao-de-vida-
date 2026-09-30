@@ -39,6 +39,7 @@ class AssistantApp:
         self.voice = None
         self.listening = False
         self.last_search_results = []
+        self.context = {}
         self.engine = CommandEngine(self)
 
         self.tts = None
