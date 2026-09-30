@@ -33,7 +33,11 @@ class CommandEngine:
     def execute_chain(self, commands):
         results = []
         for index, command in enumerate(commands, 1):
-            results.append(f"{index}. {self.execute_single(command, command)}")
+            result = self.execute_single(command, command)
+            results.append(f"{index}. {result}")
+            if result.lower().startswith(("não encontrei", "não consegui", "não vou")):
+                results.append(f"Automação interrompida na etapa {index}.")
+                break
         return f"Executando {len(commands)} ações:\n" + "\n".join(results)
 
     def execute_single(self, raw, text=None):
@@ -45,6 +49,10 @@ class CommandEngine:
 
         if self._is_time_request(text):
             return f"Agora são {datetime.now().strftime('%H:%M')}."
+
+        if text in {"o que eu pedi", "o que pedi", "qual foi meu ultimo comando", "qual foi meu ultimo pedido"}:
+            previous = self.app.context.get("last_command")
+            return f"Seu último comando foi: {previous}." if previous else "Ainda não há um comando anterior nesta sessão."
 
         if self._contains_any(text, ["ajuda", "o que voce faz", "suas funcoes"]):
             return (
