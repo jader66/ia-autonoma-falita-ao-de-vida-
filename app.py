@@ -19,12 +19,20 @@ except Exception:
     VoiceListener = None
 
 from command_engine import CommandEngine
+try:
+    from version import APP_VERSION
+except Exception:
+    APP_VERSION = "1.7.0"
+try:
+    from updater import check_and_update
+except Exception:
+    check_and_update = None
 
 
 class AssistantApp:
     def __init__(self):
         self.root = tk.Tk()
-        self.root.title("Assistente")
+        self.root.title(f"Assistente v{APP_VERSION}")
         self.root.geometry("980x680")
         self.root.minsize(760, 520)
         self.root.configure(bg="#0d1117")
@@ -44,8 +52,10 @@ class AssistantApp:
         self._build_ui()
         self.write_message(
             "Assistente",
-            "Olá! Estou pronto. Você pode falar comigo naturalmente ou usar o teclado."
+            f"Olá! Estou pronto. Versão {APP_VERSION}. Você pode falar comigo naturalmente ou usar o teclado."
         )
+        if check_and_update:
+            self.root.after(1500, self.start_update_check)
 
     def _build_ui(self):
         header = tk.Frame(self.root, bg="#0d1117")
@@ -131,6 +141,18 @@ class AssistantApp:
         response = self.engine.execute(command)
         self.write_message("Assistente", response)
         self.speak(response)
+
+    def start_update_check(self):
+        if not check_and_update:
+            return
+        check_and_update(
+            on_status=lambda status: self.root.after(0, lambda: self.status.config(text="● " + status.upper())),
+            on_ready=lambda latest: self.root.after(0, self.finish_update),
+        )
+
+    def finish_update(self):
+        self.write_message("Assistente", "Atualização baixada. Reiniciando para instalar...")
+        self.root.after(1200, self.root.destroy)
 
     def toggle_voice(self):
         if not VoiceListener:
