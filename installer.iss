@@ -1,5 +1,5 @@
 #define MyAppName "Assistente"
-#define MyAppVersion "1.3.1"
+#define MyAppVersion "1.7.0"
 #define MyAppPublisher "Assistente"
 #define MyAppExeName "Assistente.exe"
 
