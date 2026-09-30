@@ -38,6 +38,13 @@ jobs:
         run: |
           pyinstaller --noconfirm --clean --onefile --windowed --name Assistente --collect-all vosk --collect-all sounddevice --hidden-import pyttsx3.drivers --hidden-import pyttsx3.drivers.sapi5 --add-data "models\vosk-model-small-pt-0.3;models\vosk-model-small-pt-0.3" app.py
 
+      - name: Verificar executavel
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "dist\Assistente.exe")) { throw "Assistente.exe nao foi gerado." }
+          $size = (Get-Item "dist\Assistente.exe").Length
+          Write-Host "Assistente.exe gerado: $size bytes"
+
       - name: Instalar Inno Setup
         shell: pwsh
         run: |
@@ -48,6 +55,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path installer | Out-Null
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
+          if (-not (Test-Path "installer\Assistente-Setup.exe")) { throw "Assistente-Setup.exe nao foi gerado." }
 
       - name: Publicar instalador
         uses: actions/upload-artifact@v4
