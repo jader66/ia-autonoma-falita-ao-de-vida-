@@ -1,9 +1,7 @@
-import os
 import re
-import sys
+import subprocess
 import threading
 import webbrowser
-import subprocess
 import tkinter as tk
 from tkinter import messagebox
 from datetime import datetime, timedelta
@@ -13,6 +11,11 @@ try:
 except Exception:
     pyttsx3 = None
 
+try:
+    from voice import VoiceListener
+except Exception:
+    VoiceListener = None
+
 
 class AssistantApp:
     def __init__(self):
@@ -21,6 +24,8 @@ class AssistantApp:
         self.root.geometry("980x680")
         self.root.minsize(760, 520)
         self.root.configure(bg="#0d1117")
+        self.voice = None
+        self.listening = False
 
         self.tts = None
         if pyttsx3:
@@ -28,80 +33,49 @@ class AssistantApp:
                 self.tts = pyttsx3.init()
                 self.tts.setProperty("rate", 175)
             except Exception:
-                self.tts = None
+                pass
 
         self._build_ui()
-        self.write_message("Assistente", "Olá! Estou pronto. Digite um comando para começar.")
+        self.write_message("Assistente", "Olá! Estou pronto. Você pode digitar ou usar o microfone.")
 
     def _build_ui(self):
         header = tk.Frame(self.root, bg="#0d1117")
         header.pack(fill="x", padx=28, pady=(24, 12))
 
-        title = tk.Label(
-            header,
-            text="ASSISTENTE",
-            font=("Segoe UI", 22, "bold"),
-            fg="#ffffff",
-            bg="#0d1117",
-        )
-        title.pack(anchor="w")
+        tk.Label(header, text="ASSISTENTE", font=("Segoe UI", 22, "bold"),
+                 fg="white", bg="#0d1117").pack(side="left")
 
-        status = tk.Label(
-            header,
-            text="● ONLINE  •  CENTRAL ÚNICA",
-            font=("Segoe UI", 9, "bold"),
-            fg="#65d18a",
-            bg="#0d1117",
-        )
-        status.pack(anchor="w", pady=(4, 0))
+        self.status = tk.Label(header, text="● ONLINE", font=("Segoe UI", 9, "bold"),
+                               fg="#65d18a", bg="#0d1117")
+        self.status.pack(side="right")
 
         body = tk.Frame(self.root, bg="#111820")
         body.pack(fill="both", expand=True, padx=28, pady=8)
 
-        self.chat = tk.Text(
-            body,
-            wrap="word",
-            state="disabled",
-            bg="#111820",
-            fg="#e6edf3",
-            insertbackground="#ffffff",
-            relief="flat",
-            bd=0,
-            padx=20,
-            pady=20,
-            font=("Segoe UI", 11),
-        )
+        self.chat = tk.Text(body, wrap="word", state="disabled",
+                            bg="#111820", fg="#e6edf3", insertbackground="white",
+                            relief="flat", bd=0, padx=20, pady=20,
+                            font=("Segoe UI", 11))
         self.chat.pack(fill="both", expand=True)
 
         bottom = tk.Frame(self.root, bg="#0d1117")
         bottom.pack(fill="x", padx=28, pady=(12, 24))
 
-        self.entry = tk.Entry(
-            bottom,
-            bg="#161b22",
-            fg="#ffffff",
-            insertbackground="#ffffff",
-            relief="flat",
-            font=("Segoe UI", 12),
-        )
-        self.entry.pack(side="left", fill="x", expand=True, ipady=12, padx=(0, 10))
+        self.entry = tk.Entry(bottom, bg="#161b22", fg="white",
+                              insertbackground="white", relief="flat",
+                              font=("Segoe UI", 12))
+        self.entry.pack(side="left", fill="x", expand=True, ipady=12, padx=(0, 8))
         self.entry.bind("<Return>", lambda _: self.send())
 
-        send = tk.Button(
-            bottom,
-            text="ENVIAR",
-            command=self.send,
-            bg="#238636",
-            fg="white",
-            activebackground="#2ea043",
-            activeforeground="white",
-            relief="flat",
-            padx=20,
-            pady=10,
-            font=("Segoe UI", 10, "bold"),
-            cursor="hand2",
-        )
-        send.pack(side="right")
+        tk.Button(bottom, text="🎙", command=self.toggle_voice,
+                  bg="#30363d", fg="white", activebackground="#484f58",
+                  relief="flat", padx=14, pady=9, font=("Segoe UI", 11, "bold"),
+                  cursor="hand2").pack(side="left", padx=(0, 8))
+
+        tk.Button(bottom, text="ENVIAR", command=self.send,
+                  bg="#238636", fg="white", activebackground="#2ea043",
+                  relief="flat", padx=20, pady=10, font=("Segoe UI", 10, "bold"),
+                  cursor="hand2").pack(side="right")
 
         self.entry.focus_set()
 
@@ -109,7 +83,8 @@ class AssistantApp:
         self.chat.configure(state="normal")
         self.chat.insert("end", f"{author}\n", "author")
         self.chat.insert("end", f"{text}\n\n")
-        self.chat.tag_configure("author", foreground="#65d18a", font=("Segoe UI", 10, "bold"))
+        self.chat.tag_configure("author", foreground="#65d18a",
+                                font=("Segoe UI", 10, "bold"))
         self.chat.see("end")
         self.chat.configure(state="disabled")
 
@@ -127,15 +102,36 @@ class AssistantApp:
 
     def send(self):
         command = self.entry.get().strip()
-        if not command:
-            return
+        if command:
+            self.process(command)
 
+    def process(self, command):
         self.entry.delete(0, "end")
         self.write_message("Você", command)
-
         response = self.handle_command(command)
         self.write_message("Assistente", response)
         self.speak(response)
+
+    def toggle_voice(self):
+        if not VoiceListener:
+            self.write_message("Assistente", "O módulo de voz não está disponível. Instale as dependências da V1.1.")
+            return
+        if self.listening:
+            self.listening = False
+            self.status.config(text="● ONLINE", fg="#65d18a")
+            if self.voice:
+                self.voice.stop()
+            return
+        self.listening = True
+        self.status.config(text="● ESCUTANDO", fg="#58a6ff")
+        self.voice = VoiceListener(self.on_voice_command, self.on_voice_status)
+        self.voice.start()
+
+    def on_voice_status(self, text):
+        self.root.after(0, lambda: self.status.config(text=text))
+
+    def on_voice_command(self, command):
+        self.root.after(0, lambda: self.process(command))
 
     def handle_command(self, raw):
         command = raw.lower().strip()
@@ -148,23 +144,31 @@ class AssistantApp:
             return f"Agora são {datetime.now().strftime('%H:%M')}."
 
         if command.startswith("abrir "):
-            target = raw[6:].strip()
-            return self.open_target(target)
+            return self.open_target(raw[6:].strip())
+
+        if command.startswith("pesquisar ") or command.startswith("pesquise "):
+            query = re.sub(r"^pesquis(?:ar|e)\s+", "", raw, flags=re.I).strip()
+            webbrowser.open("https://www.google.com/search?q=" + query.replace(" ", "+"))
+            return f"Pesquisando por {query}."
 
         if "criar lembrete" in command or command.startswith("me lembre"):
             return self.create_reminder(raw)
 
-        if command in {"ajuda", "help", "o que você faz"}:
-            return (
-                "Nesta V1 eu consigo abrir programas e sites, consultar o horário, "
-                "criar lembretes simples e executar comandos básicos. "
-                "A estrutura já está preparada para receber as próximas funções."
-            )
+        if "bloquear computador" in command or "bloqueie o computador" in command:
+            subprocess.Popen(["rundll32.exe", "user32.dll,LockWorkStation"])
+            return "Computador bloqueado."
 
-        return (
-            "Entendi o comando, mas essa função ainda está sendo adicionada. "
-            "A partir das próximas fases, poderei executar tarefas mais complexas."
-        )
+        if command in {"abrir configurações", "abrir configurações do windows"}:
+            subprocess.Popen("start ms-settings:", shell=True)
+            return "Abrindo as configurações do Windows."
+
+        if command in {"ajuda", "help", "o que você faz"}:
+            return ("Posso abrir programas e sites, pesquisar na internet, consultar o horário, "
+                    "criar lembretes, bloquear o computador e executar outros comandos que serão "
+                    "adicionados nas próximas fases.")
+
+        return ("Entendi. Essa capacidade ainda não está conectada nesta versão, mas o comando "
+                "foi recebido e a arquitetura já está preparada para adicionar a função.")
 
     def open_target(self, target):
         aliases = {
@@ -174,8 +178,11 @@ class AssistantApp:
             "notepad": "notepad.exe",
             "explorador": "explorer.exe",
             "explorador de arquivos": "explorer.exe",
+            "gerenciador de tarefas": "taskmgr.exe",
+            "paint": "mspaint.exe",
+            "terminal": "wt.exe",
+            "prompt de comando": "cmd.exe",
         }
-
         key = target.lower()
 
         if key in aliases:
@@ -191,7 +198,6 @@ class AssistantApp:
             "github": "https://github.com",
             "whatsapp": "https://web.whatsapp.com",
         }
-
         if key in sites:
             webbrowser.open(sites[key])
             return f"Abrindo {target}."
@@ -205,15 +211,13 @@ class AssistantApp:
     def create_reminder(self, raw):
         match = re.search(r"(?:em|daqui a)\s+(\d+)\s*(minutos?|horas?)", raw.lower())
         if not match:
-            return "Diga o tempo, por exemplo: 'criar lembrete em 10 minutos de testar o sistema'."
+            return "Use, por exemplo: criar lembrete em 10 minutos de testar o sistema."
 
         amount = int(match.group(1))
         unit = match.group(2)
         seconds = amount * 60 if unit.startswith("min") else amount * 3600
-
         task = re.split(r"(?:minutos?|horas?)", raw, flags=re.I, maxsplit=1)[-1]
-        task = re.sub(r"^\s*(?:de|para)\s*", "", task, flags=re.I).strip()
-        task = task or "verificar o lembrete"
+        task = re.sub(r"^\s*(?:de|para)\s*", "", task, flags=re.I).strip() or "verificar o lembrete"
 
         self.root.after(seconds * 1000, lambda: self.reminder_alert(task))
         when = datetime.now() + timedelta(seconds=seconds)
