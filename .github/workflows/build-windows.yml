@@ -5,6 +5,9 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
@@ -17,6 +20,18 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
+      - name: Preparar versao do build
+        shell: pwsh
+        run: |
+          $run = [int]$env:GITHUB_RUN_NUMBER
+          $version = "1.7.0"
+          @"
+          APP_VERSION = "$version"
+          APP_BUILD = $run
+          "@ | Set-Content -Encoding UTF8 version.py
+          (Get-Content installer.iss) -replace '#define MyAppVersion "1.7.0"', "#define MyAppVersion `"$version.$run`"" | Set-Content -Encoding UTF8 installer.iss
+          Write-Host "Versao: $version | Build: $run"
 
       - name: Instalar dependencias
         shell: pwsh
@@ -62,3 +77,11 @@ jobs:
         with:
           name: Assistente-Windows-Setup
           path: installer/Assistente-Setup.exe
+
+      - name: Publicar release para atualizacao automatica
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = "v1.7.0-build.$env:GITHUB_RUN_NUMBER"
+          gh release create $tag "installer/Assistente-Setup.exe" --repo "$env:GITHUB_REPOSITORY" --title "Assistente $tag" --notes "Atualização automática do Assistente." --latest
