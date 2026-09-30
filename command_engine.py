@@ -23,10 +23,11 @@ class CommandEngine:
         if self._is_time_request(text):
             return f"Agora são {datetime.now().strftime('%H:%M')}."
 
-        if self._contains_any(text, ["ajuda", "o que você faz", "o que voce faz", "suas funções", "suas funcoes"]):
+        if self._contains_any(text, ["ajuda", "o que voce faz", "suas funcoes"]):
             return (
-                "Posso abrir programas e sites, pesquisar na internet, controlar funções "
-                "do Windows, criar lembretes e responder por voz. Tudo continua na mesma tela."
+                "Posso abrir e fechar programas, abrir pastas, procurar arquivos, "
+                "criar pastas, pesquisar na internet, controlar funções do Windows, "
+                "criar lembretes e responder por voz. Tudo continua na mesma tela."
             )
 
         if self._is_lock_request(text):
@@ -46,9 +47,71 @@ class CommandEngine:
         if "lembrete" in text or "me lembre" in text or "me avise" in text:
             return self.app.create_reminder(raw)
 
+        if self._is_create_folder_request(text):
+            name = self.extract_after_phrases(
+                text,
+                [
+                    "crie uma pasta chamada",
+                    "cria uma pasta chamada",
+                    "criar uma pasta chamada",
+                    "crie uma pasta",
+                    "cria uma pasta",
+                    "criar uma pasta",
+                ],
+            )
+            return self.app.create_folder(self.clean_target(name))
+
+        if self._is_file_search_request(text):
+            query = self.extract_after_phrases(
+                text,
+                [
+                    "procure o arquivo",
+                    "procure pelo arquivo",
+                    "procura o arquivo",
+                    "procura pelo arquivo",
+                    "encontre o arquivo",
+                    "encontre pelo arquivo",
+                    "encontra o arquivo",
+                    "encontra pelo arquivo",
+                    "procure",
+                    "procura",
+                    "encontre",
+                    "encontra",
+                ],
+            )
+            query = self.clean_target(query)
+            return self.app.search_files(query)
+
+        if self._is_close_request(text):
+            target = self.extract_after_phrases(
+                text,
+                ["feche", "fechar", "fecha", "encerre", "encerra"]
+            )
+            target = self.clean_target(target)
+            if target:
+                return self.app.close_target(target)
+            return "Qual programa você quer que eu feche?"
+
+        # Abrir vem antes de pesquisar para que "abrir o Google" abra o site.
+        if self._contains_any(text, [
+            "abrir", "abre", "abra", "iniciar", "inicie",
+            "inicia", "executar", "execute", "rodar", "roda"
+        ]):
+            target = self.extract_target(
+                text,
+                [
+                    "abrir", "abre", "abra", "iniciar", "inicie",
+                    "inicia", "executar", "execute", "rodar", "roda"
+                ]
+            )
+            target = self.clean_target(target)
+            if target:
+                return self.app.open_target(target)
+            return "Qual programa, site ou pasta você quer que eu abra?"
+
         if self._contains_any(text, [
             "pesquisar", "pesquisa", "buscar", "busque", "procure",
-            "pesquisa na internet", "procura na internet", "google"
+            "procura na internet", "pesquisa na internet", "google"
         ]):
             query = self.extract_search_query(text)
             if query:
@@ -58,20 +121,6 @@ class CommandEngine:
                 return f"Pesquisando por {query}."
             return "O que você quer que eu pesquise?"
 
-        if self._contains_any(text, [
-            "abrir", "abre", "abra", "iniciar", "inicie",
-            "inicia", "executar", "execute", "rodar", "roda"
-        ]):
-            target = self.extract_target(
-                text,
-                ["abrir", "abre", "abra", "iniciar", "inicie",
-                 "inicia", "executar", "execute", "rodar", "roda"]
-            )
-            target = self.clean_target(target)
-            if target:
-                return self.app.open_target(target)
-            return "Qual programa ou site você quer que eu abra?"
-
         return (
             "Entendi o comando, mas ainda não tenho uma ação para essa solicitação. "
             "A próxima evolução será adicionar novas ações ao mesmo motor, sem criar outra tela."
@@ -80,10 +129,11 @@ class CommandEngine:
     @staticmethod
     def normalize(text):
         text = str(text).lower().strip()
-        text = text.replace("á", "a").replace("à", "a").replace("ã", "a")
-        text = text.replace("â", "a").replace("é", "e").replace("ê", "e")
-        text = text.replace("í", "i").replace("ó", "o").replace("ô", "o")
-        text = text.replace("õ", "o").replace("ú", "u").replace("ç", "c")
+        replacements = str.maketrans(
+            "áàãâéêíóôõúç",
+            "aaaaeeiooouc"
+        )
+        text = text.translate(replacements)
         text = re.sub(r"[!?.,;:]+", " ", text)
         return re.sub(r"\s+", " ", text)
 
@@ -122,6 +172,43 @@ class CommandEngine:
         )
 
     @staticmethod
+    def _is_close_request(text):
+        return any(
+            text.startswith(prefix + " ")
+            or text == prefix
+            for prefix in ["feche", "fechar", "fecha", "encerre", "encerra"]
+        )
+
+    @staticmethod
+    def _is_file_search_request(text):
+        return (
+            text.startswith("procure arquivo")
+            or text.startswith("procura arquivo")
+            or text.startswith("procure o arquivo")
+            or text.startswith("procura o arquivo")
+            or text.startswith("procure pelo arquivo")
+            or text.startswith("procura pelo arquivo")
+            or text.startswith("encontre arquivo")
+            or text.startswith("encontra arquivo")
+            or text.startswith("encontre o arquivo")
+            or text.startswith("encontra o arquivo")
+            or "no computador" in text and any(
+                word in text for word in ["procure", "procura", "encontre", "encontra"]
+            )
+        )
+
+    @staticmethod
+    def _is_create_folder_request(text):
+        return any(
+            phrase in text
+            for phrase in [
+                "crie uma pasta",
+                "cria uma pasta",
+                "criar uma pasta",
+            ]
+        )
+
+    @staticmethod
     def extract_target(text, triggers):
         for trigger in sorted(triggers, key=len, reverse=True):
             pattern = rf"\b{re.escape(trigger)}\b\s*(.*)"
@@ -131,11 +218,22 @@ class CommandEngine:
         return None
 
     @staticmethod
+    def extract_after_phrases(text, phrases):
+        for phrase in sorted(phrases, key=len, reverse=True):
+            if text.startswith(phrase):
+                return text[len(phrase):].strip()
+        for phrase in sorted(phrases, key=len, reverse=True):
+            match = re.search(rf"\b{re.escape(phrase)}\b\s*(.*)", text)
+            if match:
+                return match.group(1).strip()
+        return None
+
+    @staticmethod
     def clean_target(target):
         if not target:
             return None
         target = re.sub(
-            r"^(o|a|os|as|um|uma|meu|minha|meu|por favor)\s+",
+            r"^(o|a|os|as|um|uma|meu|minha|meus|minhas|por favor)\s+",
             "",
             target,
             flags=re.I,
@@ -151,7 +249,6 @@ class CommandEngine:
     @staticmethod
     def extract_search_query(text):
         query = text
-
         prefixes = [
             "pesquisa na internet",
             "procura na internet",
@@ -164,12 +261,15 @@ class CommandEngine:
             "procure",
             "google",
         ]
-
         for prefix in sorted(prefixes, key=len, reverse=True):
-            query = re.sub(rf"\b{re.escape(prefix)}\b", "", query, count=1)
-            if query != text:
+            new_query = re.sub(
+                rf"\b{re.escape(prefix)}\b", "", query, count=1
+            )
+            if new_query != query:
+                query = new_query
                 break
-
         query = re.sub(r"^\s*(sobre|por|para)\s+", "", query)
-        query = re.sub(r"\s+(por favor|pra mim|para mim)$", "", query)
+        query = re.sub(
+            r"\s+(por favor|pra mim|para mim)$", "", query
+        )
         return query.strip()
