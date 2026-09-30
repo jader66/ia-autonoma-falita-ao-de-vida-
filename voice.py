@@ -1,18 +1,27 @@
 """Escuta contínua em português, sem PyAudio.
 
 A palavra de ativação é configurável. Padrão: "assistente".
-O reconhecimento usa Vosk + sounddevice.
+O modelo Vosk pode estar embutido no executável de arquivo único.
 """
 
 import json
 import os
 import queue
+import sys
 import threading
 import zipfile
 import urllib.request
 
 MODEL_URL = "https://alphacephei.com/vosk/models/vosk-model-small-pt-0.3.zip"
-MODEL_DIR = os.path.join("models", "vosk-model-small-pt-0.3")
+MODEL_NAME = "vosk-model-small-pt-0.3"
+
+
+def _base_dir():
+    # PyInstaller --onefile extrai recursos para _MEIPASS.
+    return getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+
+
+MODEL_DIR = os.path.join(_base_dir(), "models", MODEL_NAME)
 
 
 def model_available():
@@ -20,13 +29,15 @@ def model_available():
 
 
 def download_model():
-    os.makedirs("models", exist_ok=True)
-    archive = os.path.join("models", "vosk-model-small-pt-0.3.zip")
+    # Usado somente quando o modelo não foi incluído na distribuição.
+    target_root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
+    os.makedirs(target_root, exist_ok=True)
+    archive = os.path.join(target_root, MODEL_NAME + ".zip")
     urllib.request.urlretrieve(MODEL_URL, archive)
     with zipfile.ZipFile(archive, "r") as zf:
-        zf.extractall("models")
+        zf.extractall(target_root)
     os.remove(archive)
-    return model_available()
+    return os.path.isdir(os.path.join(target_root, MODEL_NAME))
 
 
 class VoiceListener:
@@ -53,6 +64,7 @@ class VoiceListener:
             from vosk import Model, KaldiRecognizer
         except Exception:
             self.on_status("● VOZ INDISPONÍVEL")
+            self.running = False
             return
 
         if not model_available():
@@ -75,8 +87,13 @@ class VoiceListener:
 
             self.on_status("● ESCUTANDO: " + self.wake_word.upper())
 
-            with sd.RawInputStream(samplerate=16000, blocksize=4000,
-                                   dtype="int16", channels=1, callback=callback):
+            with sd.RawInputStream(
+                samplerate=16000,
+                blocksize=4000,
+                dtype="int16",
+                channels=1,
+                callback=callback,
+            ):
                 while self.running:
                     data = audio.get()
                     if recognizer.AcceptWaveform(data):
