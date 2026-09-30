@@ -30,6 +30,7 @@ class AssistantApp:
         self.root.configure(bg="#0d1117")
         self.voice = None
         self.listening = False
+        self.last_search_results = []
         self.engine = CommandEngine(self)
 
         self.tts = None
@@ -311,6 +312,8 @@ class AssistantApp:
                 continue
             if len(results) >= 8:
                 break
+
+        self.last_search_results = results
 
         if not results:
             return f"Não encontrei '{query}' nas pastas principais do usuário."
